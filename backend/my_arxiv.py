@@ -1,0 +1,25 @@
+import arxiv
+
+### docs said keep one client rather than remake it everytime
+arxiv_client = arxiv.Client()
+
+
+def search_arxiv(query: str, max_results: int = 5) -> list[dict]:
+
+    search = arxiv.Search(
+        query=query,
+        max_results=max_results,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+    )
+
+    results = []
+    for paper in arxiv_client.results(search):
+        results.append(
+            {
+                "title": paper.title,
+                "summary": paper.summary,
+                "link": paper.entry_id,
+                "published": paper.published.isoformat(),
+            }
+        )
+    return results
