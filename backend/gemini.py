@@ -17,26 +17,32 @@ LIMIT_NOTE = """Tool limit reached. Do not call any more tools. Using only the r
 SYSTEM_INSTRUCTION = f"""You are a conversational assistant that discusses two topics: ongoing AI news and generative AI research papers on arXiv.
 
 Tools:
-- Use the search_arxiv tool when the user asks about papers, research, or techniques from arXiv.
-- Use as few tool calls as possible. Aim to get everything you need in a single call by writing one well-targeted query that covers the whole request. If you genuinely need several separate searches, make them together in the same turn rather than one after another.
+- Use Google Search for current AI news and recent developments. Aim to use the LEAST amount of searches possible.
+- Use the search_arxiv tool for papers, research, or techniques from arXiv.
+- Use as few searches as possible. Aim to cover the whole request with one well-targeted query per tool. If you genuinely need several separate searches, make them together in the same turn rather than one after another.
 - Only search again if the previous result was empty or clearly irrelevant, and refine the query each time rather than repeating it.
-- You may call tools at most {MAX_TOOL_CALLS} times in total while answering a single user message. After your third call (or sooner, if you already have enough), stop calling tools and write your final reply using what you have. If the searches returned nothing relevant, say so in the response instead of guessing.
-- If the user asks about current AI news and you have no news tool available, say that news isn't available yet and offer to discuss arXiv papers instead. Do not answer news questions from memory as if they were current.
+- You may call search_arxiv at most {MAX_TOOL_CALLS} times in total while answering a single user message. Once you have enough, or reach that limit, stop calling tools and write your final reply using what you have. If the searches returned nothing relevant, say so in the response instead of guessing.
+- Never answer questions about current news from memory as if the information were current. If web search returns nothing usable, say so.
+
+Scope:
+- Answer any question about AI news, not just generative AI.
+- For papers, focus on generative AI. If the user asks about a paper outside generative AI, you may answer briefly, but mention that your focus is generative AI research.
+- If a request is unrelated to AI, do not use any tools. Politely explain what you cover, suggest a relevant topic (for example, recent AI news or a generative AI paper), and still return all three parts, with sources left empty.
 
 Conversation:
 - Be conversational and natural. Use the earlier turns of the conversation to interpret follow-up questions (for example "tell me more about the second one").
-- You only have each paper's title, authors, date, and abstract. When discussing a paper, base your answers on those. If the user asks for details that the abstract doesn't cover, say you only have the abstract and point them to the paper's link.
-- If a request is outside AI news or genAI papers, politely steer back to those topics.
+- For arXiv papers, you only have each paper's title, authors, date, and abstract. When discussing a paper, base your answers on those. If the user asks for details the abstract doesn't cover, say you only have the abstract and point them to the paper's link.
+- For news, mention publication dates where available, since news is time-sensitive.
 
 Every reply must have three parts:
 1. response: the answer to the user's message, taking previous turns into account.
-2. justification: a short explanation of why this response is appropriate, including whether you used a search and why.
+2. justification: a short explanation of why this response is appropriate, including whether you used a search, which one, and why.
 3. sources: a list of links you actually used.
 
 Rules for sources:
-- Only include links that appeared in tool results. Never invent or guess URLs.
-- If you did not use any sources (for example a greeting or a follow-up answered from earlier context), return an empty list.
-- If a search returns nothing relevant, say so in the response instead of guessing."""
+- Only include links that appeared in arXiv results or web search results. Never invent or guess URLs.
+- If you did not use any sources (for example a greeting, an off-topic redirect, or a follow-up answered from earlier context), return an empty list.
+- If a search returns nothing relevant, say so in the response instead of guessing. Do not add sources in that case."""
 
 model = os.environ["MODEL"]
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
@@ -64,7 +70,7 @@ search_arxiv_tool = {
         "required": ["query"],
     },
 }
-tools = [search_arxiv_tool]
+tools = [search_arxiv_tool, {"type": "google_search"}]
 
 
 COMMON = {
@@ -107,37 +113,53 @@ def handle_function_call(function_call):
             return {"error": f"Failed to search arXiv: {e!s}"}
 
 
-def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
+def collect_grounded_sources(interaction, sources):
+    # pulled from the gemini docs page
+    for step in interaction.steps:
+        if step.type == "model_output":
+            for block in step.content:
+                if block.type == "text" and block.annotations:
+                    for annotation in block.annotations:
+                        if annotation.type == "url_citation":
+                            sources[annotation.url] = annotation.title
 
+
+def send_function_result(interaction, function_call, limit_reached, result):
+    return client.interactions.create(
+        input=[
+            {
+                "type": "function_result",
+                "name": function_call.name,
+                "call_id": function_call.id,
+                "result": [{"type": "text", "text": json.dumps(result)}],
+            }
+        ],
+        previous_interaction_id=interaction.id,
+        **(COMMON_NO_TOOLS if limit_reached else COMMON),
+    )
+
+
+def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
+    grounded_sources: dict[str, str] = {}
     # user input to gemini, with previous transaction id if available
     interaction = client.interactions.create(
         input=prompt, previous_interaction_id=previous_transaction_id, **COMMON
     )
-
+    collect_grounded_sources(interaction, grounded_sources)
     # check if gemini called a function, and handle it if so
     rounds = 0
     while (function_call := get_function_call(interaction)) is not None:
         rounds += 1
         result = handle_function_call(function_call)
-        print(rounds)
+
         limit_reached = rounds >= MAX_TOOL_CALLS
         if limit_reached:
-            payload = {"result": result, "note": LIMIT_NOTE}
-        else:
-            payload = result
+            result = {"result": result, "note": LIMIT_NOTE}
 
-        interaction = client.interactions.create(
-            input=[
-                {
-                    "type": "function_result",
-                    "name": function_call.name,
-                    "call_id": function_call.id,
-                    "result": [{"type": "text", "text": json.dumps(payload)}],
-                }
-            ],
-            previous_interaction_id=interaction.id,
-            **(COMMON_NO_TOOLS if limit_reached else COMMON),
+        interaction = send_function_result(
+            interaction, function_call, limit_reached, result
         )
+        collect_grounded_sources(interaction, grounded_sources)
         if limit_reached:
             break
 
@@ -152,5 +174,8 @@ def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
             " and the structured response could not be generated.",
             sources=[],
         )
+    for url in grounded_sources:
+        if url not in reply.sources:
+            reply.sources.append(url)
     reply.transaction_id = interaction.id
     return reply
