@@ -7,11 +7,20 @@ from models import ChatReply
 from my_arxiv import search_arxiv
 
 load_dotenv()
+MAX_TOOL_CALLS = 3
 
-SYSTEM_INSTRUCTION = """You are a conversational assistant that discusses two topics: ongoing AI news and generative AI research papers on arXiv.
+LIMIT_NOTE = """Tool limit reached. Do not call any more tools. Using only the results
+    you already have, write your final reply in the required format. If the
+    results were empty or irrelevant, say so instead of guessing. 
+    Tell the user this is why you could not get all the info they needed"""
+
+SYSTEM_INSTRUCTION = f"""You are a conversational assistant that discusses two topics: ongoing AI news and generative AI research papers on arXiv.
 
 Tools:
-- Use the search_arxiv tool when the user asks about papers, research, or techniques from arXiv. Write a focused query, and use at most one search per message unless the first returns nothing.
+- Use the search_arxiv tool when the user asks about papers, research, or techniques from arXiv.
+- Use as few tool calls as possible. Aim to get everything you need in a single call by writing one well-targeted query that covers the whole request. If you genuinely need several separate searches, make them together in the same turn rather than one after another.
+- Only search again if the previous result was empty or clearly irrelevant, and refine the query each time rather than repeating it.
+- You may call tools at most {MAX_TOOL_CALLS} times in total while answering a single user message. After your third call (or sooner, if you already have enough), stop calling tools and write your final reply using what you have. If the searches returned nothing relevant, say so in the response instead of guessing.
 - If the user asks about current AI news and you have no news tool available, say that news isn't available yet and offer to discuss arXiv papers instead. Do not answer news questions from memory as if they were current.
 
 Conversation:
@@ -28,6 +37,7 @@ Rules for sources:
 - Only include links that appeared in tool results. Never invent or guess URLs.
 - If you did not use any sources (for example a greeting or a follow-up answered from earlier context), return an empty list.
 - If a search returns nothing relevant, say so in the response instead of guessing."""
+
 model = os.environ["MODEL"]
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
@@ -56,9 +66,19 @@ search_arxiv_tool = {
 }
 tools = [search_arxiv_tool]
 
+
 COMMON = {
     "model": model,
     "tools": tools,
+    "system_instruction": SYSTEM_INSTRUCTION,
+    "response_format": {
+        "type": "text",
+        "mime_type": "application/json",
+        "schema": ChatReply.model_json_schema(),
+    },
+}
+COMMON_NO_TOOLS = {
+    "model": model,
     "system_instruction": SYSTEM_INSTRUCTION,
     "response_format": {
         "type": "text",
@@ -95,9 +115,16 @@ def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
     )
 
     # check if gemini called a function, and handle it if so
-    function_call = get_function_call(interaction)
-    if function_call is not None:
+    rounds = 0
+    while (function_call := get_function_call(interaction)) is not None:
+        rounds += 1
         result = handle_function_call(function_call)
+        print(rounds)
+        limit_reached = rounds >= MAX_TOOL_CALLS
+        if limit_reached:
+            payload = {"result": result, "note": LIMIT_NOTE}
+        else:
+            payload = result
 
         interaction = client.interactions.create(
             input=[
@@ -105,13 +132,25 @@ def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
                     "type": "function_result",
                     "name": function_call.name,
                     "call_id": function_call.id,
-                    "result": [{"type": "text", "text": json.dumps(result)}],
+                    "result": [{"type": "text", "text": json.dumps(payload)}],
                 }
             ],
             previous_interaction_id=interaction.id,
-            **COMMON,
+            **(COMMON_NO_TOOLS if limit_reached else COMMON),
         )
+        if limit_reached:
+            break
 
-    reply = ChatReply.model_validate_json(interaction.output_text)
+    try:
+        reply = ChatReply.model_validate_json(interaction.output_text)
+    except Exception:
+        reply = ChatReply(
+            response=f"I wasn't able to fully answer your question. Your request required "
+            f"more than {MAX_TOOL_CALLS} searches (arXiv/live search lookups) to address properly. "
+            f"Try asking about fewer topics or papers at once.",
+            justification=f"The tool limit was reached after {MAX_TOOL_CALLS} tool calls,"
+            " and the structured response could not be generated.",
+            sources=[],
+        )
     reply.transaction_id = interaction.id
     return reply
