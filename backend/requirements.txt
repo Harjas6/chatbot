@@ -1,0 +1,7 @@
+python-dotenv
+google-genai
+pydantic
+arxiv
+fastapi
+uvicorn[standard]
+requests

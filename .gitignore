@@ -1,0 +1,6 @@
+.env
+venv/
+.vscode/
+scratch.py
+__pycache__/
+*.py[cod]
