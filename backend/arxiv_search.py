@@ -1,10 +1,11 @@
 import arxiv
+from chat_config import ARXIV_DEFAULT_MAX
 
 ### docs said keep one client rather than remake it everytime
 arxiv_client = arxiv.Client()
 
 
-def search_arxiv(query: str, max_results: int = 5) -> list[dict]:
+def search_arxiv(query: str, max_results: int = ARXIV_DEFAULT_MAX) -> list[dict]:
 
     search = arxiv.Search(
         query=query,
