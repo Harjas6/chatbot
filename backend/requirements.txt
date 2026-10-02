@@ -2,6 +2,7 @@ python-dotenv
 google-genai
 pydantic
 arxiv
+ddgs
 fastapi
 uvicorn[standard]
 requests
