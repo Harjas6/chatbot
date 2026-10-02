@@ -3,6 +3,7 @@ import os
 
 from arxiv_search import search_arxiv
 from chat_config import ARXIV, MAX_TOOL_CALLS, NEWS, SYSTEM_INSTRUCTION, TOOLS, WEB
+from ddgs_search import search_news, search_web
 from dotenv import load_dotenv
 from google import genai
 from models import ChatReply
@@ -48,16 +49,21 @@ def get_function_call(interaction):
 
 
 def handle_function_call(function_call):
-    if function_call.name == ARXIV:
-        try:
+    try:
+        if function_call.name == ARXIV:
             return search_arxiv(**function_call.arguments)
-        except Exception as e:
-            return {"error": f"Failed to search arXiv: {e!s}"}
 
-    elif function_call.name == NEWS or function_call.name == WEB:
-        return {"error": f"The {function_call.name} tool is not yet implemented."}
-    else:
-        return {"error": f"Unknown function call: {function_call.name}"}
+        elif function_call.name == NEWS:
+            return search_news(**function_call.arguments)
+
+        elif function_call.name == WEB:
+            return search_web(**function_call.arguments)
+
+        else:
+            return {"error": f"Unknown function call: {function_call.name}"}
+
+    except Exception as e:
+        return {"error": f"Failed to execute {function_call.name}: {e!s}"}
 
 
 def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
