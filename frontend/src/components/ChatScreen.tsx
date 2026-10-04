@@ -77,7 +77,7 @@ export function ChatScreen() {
 	}
 	return (
 		<div className="chat-screen">
-			<MessageList messages={messages} />
+			<MessageList messages={messages} loading={loading} />
 			<ChatInput onSubmit={onSubmit} disabled={loading} />
 		</div>
 	);

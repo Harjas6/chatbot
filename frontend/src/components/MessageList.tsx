@@ -4,12 +4,18 @@ import { AIMessage } from "./AIMessage";
 import type { Message } from "../types/Message";
 import { ErrorMessage } from "./ErrorMessage";
 
-export function MessageList({ messages }: { messages: Message[] }) {
+export function MessageList({
+	messages,
+	loading,
+}: {
+	messages: Message[];
+	loading: boolean;
+}) {
 	const bottomRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-	}, [messages]);
+	}, [messages, loading]);
 
 	return (
 		<div className="message-list">
@@ -22,6 +28,13 @@ export function MessageList({ messages }: { messages: Message[] }) {
 					return <ErrorMessage key={message.id} message={message} />;
 				}
 			})}
+			{loading && (
+				<div className="ai-message loading-message">
+					<span className="dot" />
+					<span className="dot" />
+					<span className="dot" />
+				</div>
+			)}
 			<div ref={bottomRef} />
 		</div>
 	);
