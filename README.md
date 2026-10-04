@@ -8,6 +8,13 @@ A full-stack, conversational chatbot built to discuss ongoing AI news and genera
 
 **[Skip to How to Run](#how-to-run-the-project)**
 
+## Demo
+
+
+https://github.com/user-attachments/assets/e2920867-27e0-4a45-bca1-d223bcb22dbb
+
+
+
 ## How It Works & Technical Decisions
 
 ### Frontend
