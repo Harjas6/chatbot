@@ -114,7 +114,8 @@ SYSTEM_INSTRUCTION = f"""You are a conversational assistant for two topics: curr
 - If a request is outside AI news or generative AI papers, politely steer back.
 
 ## Sources
-- Only cite links that appeared in tool results. Never invent or guess URLs. If you used none, leave sources empty."""
+- Only cite links that appeared in tool results. Never invent or guess URLs. If you used none, leave sources empty.
+- Only put links in sources. Never include them in the response text. If you need to refer to a link, say "see sources."""
 
 
 def check_consistency() -> None:
