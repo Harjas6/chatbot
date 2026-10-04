@@ -28,7 +28,7 @@ SEARCH_ARXIV_TOOL = {
             },
             "max_results": {
                 "type": "integer",
-                "description": f"Maximum number of papers to return. Default {ARXIV_DEFAULT_MAX}.",
+                "description": f"Maximum number of papers to return. Default and the maximum is {ARXIV_DEFAULT_MAX}. ",
             },
         },
         "required": ["query"],

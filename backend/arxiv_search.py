@@ -5,11 +5,12 @@ from chat_config import ARXIV_DEFAULT_MAX
 arxiv_client = arxiv.Client()
 
 
-def search_arxiv(query: str, max_results: int = ARXIV_DEFAULT_MAX) -> list[dict]:
+def search_arxiv(query: str, num_results: int = ARXIV_DEFAULT_MAX) -> list[dict]:
+    num_results = min(num_results, ARXIV_DEFAULT_MAX)
 
     search = arxiv.Search(
         query=query,
-        max_results=max_results,
+        max_results=num_results,
         sort_by=arxiv.SortCriterion.SubmittedDate,
     )
 
