@@ -26,7 +26,7 @@ SEARCH_ARXIV_TOOL = {
                 "type": "string",
                 "description": "The arXiv search query string.",
             },
-            "max_results": {
+            "num_results": {
                 "type": "integer",
                 "description": f"Maximum number of papers to return. Default and the maximum is {ARXIV_DEFAULT_MAX}. ",
             },
