@@ -60,6 +60,16 @@ export function ChatScreen() {
 			]); // backend syntax contains transaction_id, instead of transactionId
 			setPreviousTransactionId(result.transaction_id);
 		} catch (error) {
+			setMessages((prevMessages) => [
+				...prevMessages,
+				{
+					id: crypto.randomUUID(),
+					role: "ERROR",
+					error: `Failed to get response from server: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				},
+			]);
 			console.error("Error sending message:", error);
 		} finally {
 			setLoading(false);
