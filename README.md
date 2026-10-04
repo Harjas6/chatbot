@@ -32,7 +32,7 @@ The chatbot uses a Pydantic model (`ChatReply`) to define the required response 
 
 #### Tool Calling
 
-The chatbot gives Gemini access to three search tools: `search_arxiv`, `search_news`, and `search_web`. Gemini determines which tool, if any, is appropriate based on the user's query, the prompt instructions, and the tool descriptions. Tool results are fed back to Gemini so it can produce a final result.
+The chatbot gives Gemini access to three search tools: `search_arxiv`, `search_news`, and `search_web`. Gemini determines which tool, if any, is appropriate based on the user's query, the prompt instructions, and the tool descriptions. The tool result is fed back to Gemini so it can produce a final result or another tool call.
 
 `search_arxiv` searches for research papers and supports arXiv category syntax such as `cat:cs.CL`, `cat:cs.LG`, and `cat:cs.AI`. Results are sorted by submission date and limited to a maximum of five results.
 
@@ -40,7 +40,11 @@ The chatbot gives Gemini access to three search tools: `search_arxiv`, `search_n
 
 DuckDuckGo was used instead of Gemini's native grounding search tool because DuckDuckGo is free, and grounding search combined with function calling and structured output is not (learned that the hard way 🙂).
 
-The backend implements the tool-calling process in a custom loop. A maximum of `MAX_TOOL_CALLS = 3` tool calls is allowed per user turn to limit API usage and prevent excessive tool execution from increasing response time. If the limit is reached, `LIMIT_NOTE` instructs Gemini to synthesize a response using the information already retrieved, while **all tools are removed** from the request so that Gemini loses the ability to make additional tool calls during this final response.
+The backend implements the tool-calling process in a custom loop. Tool calls are currently executed sequentially, with Gemini receiving each tool result before deciding whether another tool call is necessary. This allows Gemini to make an informed decision based on the information already retrieved and avoids unnecessarily executing multiple searches at once. For example, Gemini may use an `search_news` result to determine whether an additional web search is needed.
+
+A maximum of MAX_TOOL_CALLS = 3 tool calls is allowed per user turn to limit API usage and prevent excessive tool execution from increasing response time. If the limit is reached, LIMIT_NOTE instructs Gemini to synthesize a response using the information already retrieved, while all tools are removed from the request so that Gemini loses the ability to make additional tool calls during this final response.
+
+A future refactor could allow independent tool calls, such as an arXiv search and a news search, to execute in parallel. This could reduce response time while still implementing a limit for the total number of tool calls.
 
 #### Citation Policy
 
