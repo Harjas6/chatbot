@@ -8,6 +8,9 @@ Usage:
 Edit the four constants below to match your endpoint.
 """
 
+# REALLY SLOW TO RUN BECAUSE OF THE DELAY BETWEEN MESSAGES.
+# YOU CAN REDUCE DELAY_SECONDS TO SPEED IT UP, BUT YOU MIGHT GET RATE-LIMITED.
+# Frontend made it so manual testing works well too.
 import sys
 import time
 
