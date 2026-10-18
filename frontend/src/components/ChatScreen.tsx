@@ -84,8 +84,10 @@ export function ChatScreen() {
 	return (
 		<div className="chat-screen">
 			<MessageList messages={messages} loading={loading} />
-			<ChatInput onSubmit={onSubmit} disabled={loading} />
-			<FileUpload onUpload={onUpload} disabled={false} />
+			<div className="input-container">
+				<ChatInput onSubmit={onSubmit} disabled={loading} />
+				<FileUpload onUpload={onUpload} disabled={false} />
+			</div>
 		</div>
 	);
 }
