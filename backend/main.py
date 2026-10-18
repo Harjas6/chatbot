@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from gemini import ask_gemini
 from models import ChatReply, ChatRequest
@@ -21,3 +21,18 @@ def health():
 @app.post("/chat", response_model=ChatReply)
 def chat(payload: ChatRequest):
     return ask_gemini(payload.message, payload.previous_transaction_id)
+
+
+@app.post("/upload")
+def upload_files(files: list[UploadFile] = File(...)):
+    for file in files:
+        if not file.filename or not file.filename.lower().endswith(".pdf"):
+            raise HTTPException(
+                status_code=400,
+                detail="Only PDF files are allowed",
+            )
+
+    return {
+        "message": "Files received successfully",
+        "filenames": [file.filename for file in files],
+    }
