@@ -34,9 +34,30 @@ Promise<{
 	return result.json();
 }
 
+async function sendFilesToServer(files: File[]): Promise<void> {
+	const formData = new FormData();
+
+	for (const file of files) {
+		formData.append("files", file);
+	}
+
+	const result = await fetch("http://127.0.0.1:8000/upload", {
+		method: "POST",
+		body: formData,
+	});
+
+	if (!result.ok) {
+		throw new Error(`Server error: ${result.status} ${result.statusText}`);
+	}
+
+	const data = await result.json();
+	console.log("Upload successful:", data);
+}
+
 export function ChatScreen() {
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [loading, setLoading] = useState(false);
+	const [processingPDF, setProcessingPDF] = useState(false);
 	const [previousTransactionId, setPreviousTransactionId] = useState<
 		string | null
 	>(null);
@@ -79,6 +100,24 @@ export function ChatScreen() {
 
 	async function onUpload(files: File[]) {
 		console.log("Files selected:", files);
+		setProcessingPDF(true);
+		try {
+			await sendFilesToServer(files);
+		} catch (error) {
+			setMessages((prevMessages) => [
+				...prevMessages,
+				{
+					id: crypto.randomUUID(),
+					role: "ERROR",
+					error: `Failed to upload files: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				},
+			]);
+			console.error("Error uploading files:", error);
+		} finally {
+			setProcessingPDF(false);
+		}
 	}
 
 	return (
@@ -86,7 +125,7 @@ export function ChatScreen() {
 			<MessageList messages={messages} loading={loading} />
 			<div className="input-container">
 				<ChatInput onSubmit={onSubmit} disabled={loading} />
-				<FileUpload onUpload={onUpload} disabled={false} />
+				<FileUpload onUpload={onUpload} disabled={processingPDF} />
 			</div>
 		</div>
 	);
