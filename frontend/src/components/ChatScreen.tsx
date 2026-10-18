@@ -103,6 +103,14 @@ export function ChatScreen() {
 		setProcessingPDF(true);
 		try {
 			await sendFilesToServer(files);
+			setMessages((prevMessages) => [
+				...prevMessages,
+				{
+					id: crypto.randomUUID(),
+					role: "SUCCESS",
+					message: "Files uploaded successfully",
+				},
+			]);
 		} catch (error) {
 			setMessages((prevMessages) => [
 				...prevMessages,

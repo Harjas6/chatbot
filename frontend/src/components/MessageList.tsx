@@ -3,6 +3,7 @@ import { UserMessage } from "./UserMessage";
 import { AIMessage } from "./AIMessage";
 import type { Message } from "../types/Message";
 import { ErrorMessage } from "./ErrorMessage";
+import { SuccessMessage } from "./SuccessMessage";
 
 export function MessageList({
 	messages,
@@ -24,6 +25,8 @@ export function MessageList({
 					return <UserMessage key={message.id} message={message} />;
 				} else if (message.role === "AI") {
 					return <AIMessage key={message.id} message={message} />;
+				} else if (message.role === "SUCCESS") {
+					return <SuccessMessage key={message.id} message={message} />;
 				} else {
 					return <ErrorMessage key={message.id} message={message} />;
 				}

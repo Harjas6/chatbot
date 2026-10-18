@@ -18,4 +18,11 @@ export type ErrorMessageData = {
 	error: string;
 };
 
-export type Message = UserMessageData | AIMessageData | ErrorMessageData;
+export type SuccessMessageData = {
+	id: string;
+	role: "SUCCESS";
+	message: string;
+};
+
+export type Message =
+	UserMessageData | AIMessageData | ErrorMessageData | SuccessMessageData;
