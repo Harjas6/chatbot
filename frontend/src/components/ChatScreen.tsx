@@ -2,6 +2,7 @@ import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import type { Message } from "../types/Message";
 import { useState } from "react";
+import { FileUpload } from "./FileUpload";
 
 async function sendMessageToServer(
 	prompt: string,
@@ -75,10 +76,16 @@ export function ChatScreen() {
 			setLoading(false);
 		}
 	}
+
+	async function onUpload(files: File[]) {
+		console.log("Files selected:", files);
+	}
+
 	return (
 		<div className="chat-screen">
 			<MessageList messages={messages} loading={loading} />
 			<ChatInput onSubmit={onSubmit} disabled={loading} />
+			<FileUpload onUpload={onUpload} disabled={false} />
 		</div>
 	);
 }
