@@ -1,28 +1,28 @@
-import { type SubmitEvent } from "react";
+import { type ChangeEvent } from "react";
 
 type FileInputProps = {
 	onUpload: (files: File[]) => void;
 	disabled: boolean;
 };
 export function FileUpload({ onUpload, disabled }: FileInputProps) {
-	function handleSubmit(e: SubmitEvent) {
+	function handleChange(e: ChangeEvent<HTMLInputElement>) {
 		e.preventDefault();
-		const form = e.currentTarget as HTMLFormElement;
-		const fileInput = form.elements[0] as HTMLInputElement;
-		const files = Array.from(fileInput.files ?? []);
+		const files = Array.from(e.currentTarget.files ?? []);
 		if (files.length > 0) {
 			onUpload(files);
 		}
+		e.currentTarget.value = "";
 	}
 
 	return (
 		<div className="file-upload">
-			<form onSubmit={handleSubmit}>
-				<input type="file" accept=".pdf" multiple disabled={disabled} />
-				<button type="submit" disabled={disabled}>
-					Upload
-				</button>
-			</form>
+			<input
+				type="file"
+				accept=".pdf"
+				multiple
+				disabled={disabled}
+				onChange={handleChange}
+			/>
 		</div>
 	);
 }
