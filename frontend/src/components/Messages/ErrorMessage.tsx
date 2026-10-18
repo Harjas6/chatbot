@@ -1,4 +1,4 @@
-import type { ErrorMessageData } from "../types/Message";
+import type { ErrorMessageData } from "../../types/Message";
 
 export function ErrorMessage({ message }: { message: ErrorMessageData }) {
 	return (

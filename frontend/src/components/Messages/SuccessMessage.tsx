@@ -1,4 +1,4 @@
-import type { SuccessMessageData } from "../types/Message";
+import type { SuccessMessageData } from "../../types/Message";
 
 export function SuccessMessage({ message }: { message: SuccessMessageData }) {
 	return (

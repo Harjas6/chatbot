@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
-import { UserMessage } from "./UserMessage";
-import { AIMessage } from "./AIMessage";
+import { UserMessage } from "./Messages/UserMessage";
+import { AIMessage } from "./Messages/AIMessage";
 import type { Message } from "../types/Message";
-import { ErrorMessage } from "./ErrorMessage";
-import { SuccessMessage } from "./SuccessMessage";
+import { ErrorMessage } from "./Messages/ErrorMessage";
+import { SuccessMessage } from "./Messages/SuccessMessage";
 
 export function MessageList({
 	messages,
