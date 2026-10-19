@@ -46,7 +46,7 @@ def chunk_text(text: str, chunk_size: int = 200, overlap: int = 30) -> list[str]
 
 
 def embed_chunks(chunks: list[str]) -> list[list[float]]:
-    embeddings = model.encode(chunks)
+    embeddings = model.encode(chunks, normalize_embeddings=True)
     return embeddings.tolist()
 
 
