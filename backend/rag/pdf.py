@@ -4,6 +4,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 from pypdf import PdfReader
 from sentence_transformers import SentenceTransformer
+from store_vectors import store_vectors
 from transformers import AutoTokenizer
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
@@ -13,13 +14,13 @@ tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = SentenceTransformer(MODEL_NAME)
 
 
-async def save_pdf(file: UploadFile) -> Path:
+async def save_pdf(file: UploadFile) -> tuple[Path, str]:
     original_filename = file.filename or "uploaded_file.pdf"
-    filename = f"{uuid4().hex}_{original_filename}"
+    filename = f"{Path(original_filename).stem}_{uuid4().hex}.pdf"
     file_path = UPLOAD_DIR / filename
     contents = await file.read()
     file_path.write_bytes(contents)
-    return file_path
+    return file_path, filename
 
 
 def extract_text(pdf_path: Path) -> str:
@@ -51,7 +52,8 @@ def embed_chunks(chunks: list[str]) -> list[list[float]]:
 
 async def process_pdfs(files: list[UploadFile]):
     for file in files:
-        path = await save_pdf(file)
+        path, filename = await save_pdf(file)
         text = extract_text(path)
         chunks = chunk_text(text)
         embeddings = embed_chunks(chunks)
+        store_vectors(chunks, embeddings, filename)
