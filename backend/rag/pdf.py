@@ -3,15 +3,14 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 from pypdf import PdfReader
+from rag.store_vectors import store_vectors
 from sentence_transformers import SentenceTransformer
-from store_vectors import store_vectors
-from transformers import AutoTokenizer
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = SentenceTransformer(MODEL_NAME)
+tokenizer = model.tokenizer
 
 
 async def save_pdf(file: UploadFile) -> tuple[Path, str]:
