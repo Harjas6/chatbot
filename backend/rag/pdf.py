@@ -3,9 +3,11 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 from pypdf import PdfReader
+from transformers import AutoTokenizer
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
 
 
 async def save_pdf(file: UploadFile) -> Path:
@@ -25,12 +27,15 @@ def extract_text(pdf_path: Path) -> str:
     return text
 
 
-def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 300) -> list[str]:
+def chunk_text(text: str, chunk_size: int = 200, overlap: int = 30) -> list[str]:
+    if chunk_size <= 0 or overlap < 0 or overlap >= chunk_size:
+        raise ValueError("Require chunk_size > overlap >= 0")
     chunks = []
+    tokens = tokenizer.encode(text, add_special_tokens=False)
     start = 0
-    while start < len(text):
+    while start < len(tokens):
         end = start + chunk_size
-        chunks.append(text[start:end])
+        chunks.append(tokenizer.decode(tokens[start:end], skip_special_tokens=True))
         start += chunk_size - overlap
 
     return chunks
