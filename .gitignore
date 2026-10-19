@@ -7,3 +7,4 @@ __pycache__/
 results.txt
 demoChatbot.mov
 /backend/uploads/
+/backend/chroma_db/
