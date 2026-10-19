@@ -20,7 +20,7 @@ The backend is built with FastAPI and Google's GenAI SDK. Gemini was chosen beca
 
 #### Retrieval-Augmented Generation (RAG)
 
-This chatbot supports Retrieval-Augmented Generation (RAG), allowing users to upload PDF documents and ask questions about their contents. Rather than relying solely on the language model's existing knowledge, the chatbot retrieves relevant passages from uploaded documents and provides them as context when generating responses. It is restricted to PDF only as most research papers tend to be in that format. Uploaded PDFs are saved in backend/data/uploads/, and their embeddings are stored in a local ChromaDB collection.
+This chatbot supports Retrieval-Augmented Generation (RAG), allowing users to upload PDF documents and ask questions about their contents. Rather than relying solely on the language model's existing knowledge, the chatbot retrieves relevant passages from uploaded documents and provides them as context when generating responses. It is restricted to PDF only as most research papers tend to be in that format. Uploaded PDFs are saved in backend/uploads/, and their embeddings are stored in a local ChromaDB collection.
 
 - **Text Extraction:** Extract text from uploaded PDFs using `pypdf`.
 - **Chunking:** Divide the extracted text into 200-token chunks with a 30-token overlap to preserve context across chunk boundaries.
@@ -75,7 +75,7 @@ The chatbot was tested using `chat_test.py`, which generates a text file contain
 
 ### Frontend
 
-The frontend is built with React using TypeScript and Vite. Messages use a discriminated union (`Message = UserMessageData | AIMessageData | ErrorMessageData`) keyed on `role`, allowing user prompts, AI responses, and errors to coexist in a single typed conversation state while preserving their distinct fields. `MessageList` uses the message type to render the appropriate component.
+The frontend is built with React using TypeScript and Vite. Messages use a discriminated union (`Message = UserMessageData | AIMessageData | ErrorMessageData` | `SuccessMessageData`) keyed on `role`, allowing user prompts, AI responses, and errors to coexist in a single typed conversation state while preserving their distinct fields. `MessageList` uses the message type to render the appropriate component.
 
 The transaction ID returned by the backend is stored in frontend state and passed back with the next request to maintain multi-turn context. The ID is used internally and is not displayed as part of the conversation.
 
@@ -146,4 +146,4 @@ npm install
 npm run dev
 ```
 
-_The frontend will typically be accessible at `http://localhost:5173` (or `5174`). Click the link in your terminal to open the UI in your browser and start chatting!_
+_The frontend will typically be accessible at `http://localhost:5173` (or `5174`). If it starts on 5174, change Line 10 in backend/main.py to reflect that. Click the link in your terminal to open the UI in your browser and start chatting!_
