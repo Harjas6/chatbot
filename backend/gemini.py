@@ -7,6 +7,7 @@ from ddgs_search import search_news, search_web
 from dotenv import load_dotenv
 from google import genai
 from models import ChatReply
+from rag.retreive import retrieve_chunks
 
 load_dotenv()
 model = os.environ["MODEL"]
@@ -62,11 +63,20 @@ def handle_function_call(function_call):
         else:
             return {"error": f"Unknown function call: {function_call.name}"}
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         return {"error": f"Failed to execute {function_call.name}: {e!s}"}
 
 
 def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
+
+    relevant_chunks = retrieve_chunks(prompt)
+
+    if relevant_chunks:
+        docs = "\n\n".join(
+            f'<excerpt source="{filename}">\n{chunk}\n</excerpt>'
+            for chunk, filename in relevant_chunks
+        )
+        prompt += f"\n\n<uploaded_documents>\n{docs}\n</uploaded_documents>"
 
     # user input to gemini, with previous transaction id if available
     interaction = client.interactions.create(
@@ -93,15 +103,15 @@ def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
                     "result": [{"type": "text", "text": json.dumps(payload)}],
                 }
             ],
-            previous_interaction_id=interaction.id,
+            previous_interaction_id=interaction.id,  # type: ignore
             **(COMMON_NO_TOOLS if limit_reached else COMMON),
         )
         if limit_reached:
             break
 
     try:
-        reply = ChatReply.model_validate_json(interaction.output_text)
-    except Exception:
+        reply = ChatReply.model_validate_json(interaction.output_text)  # type: ignore
+    except Exception:  # noqa: BLE001
         reply = ChatReply(
             response=f"I wasn't able to fully answer your question. Your request required "
             f"more than {MAX_TOOL_CALLS} searches (arXiv/live search lookups) to address properly. "
@@ -109,6 +119,6 @@ def ask_gemini(prompt: str, previous_transaction_id: str | None = None):
             justification=f"The tool limit was reached after {MAX_TOOL_CALLS} tool calls,"
             " and the structured response could not be generated.",
             sources=[],
-        )
-    reply.transaction_id = interaction.id
+        )  # type: ignore
+    reply.transaction_id = interaction.id  # type: ignore
     return reply
