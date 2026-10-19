@@ -1,10 +1,12 @@
 # AI News & arXiv Research Chatbot
 
-A full-stack, conversational chatbot built to discuss ongoing AI news and generative AI research papers. It fetches live news using DuckDuckGo and pulls papers from arXiv, giving answers in a fixed three-part format:
+A full-stack conversational chatbot for discussing current AI news and generative AI research papers. It pulls live news from DuckDuckGo and papers from arXiv, and can answer questions about PDFs you upload (RAG). Every answer has three parts:
 
-1. The response to the user's query.
-2. The AI's justification for why the response is appropriate.
-3. Direct source links to the news articles or research papers used or found by the model.
+1. **Response** to the user's query
+2. **Justification** for why the response is appropriate
+3. **Sources**: links to the news articles or papers used
+
+**Stack:** FastAPI · Google GenAI SDK (Gemini) · ChromaDB · sentence-transformers · React + TypeScript + Vite
 
 **[Skip to How to Run](#how-to-run-the-project)**
 
@@ -12,138 +14,101 @@ A full-stack, conversational chatbot built to discuss ongoing AI news and genera
 
 https://github.com/user-attachments/assets/44531e20-5410-4c11-9f40-7a0bdfe92773
 
-## How It Works & Technical Decisions
+## How It Works
+
+### RAG (PDF Uploads)
+
+Users can upload PDFs and ask questions about them. Only PDFs are supported, as most research papers are in that format. Files are saved in `backend/uploads/`, and embeddings go in a local ChromaDB collection.
+
+**Indexing:**
+
+1. Extract text with `pypdf`
+2. Split into 200-token chunks with 30-token overlap, using the embedding model's own tokenizer so no chunk exceeds its input limit
+3. Embed each chunk with `sentence-transformers/all-MiniLM-L6-v2` and normalize
+4. Store in ChromaDB with the chunk text and source filename
+
+**Retrieval:** the user's prompt is embedded with the same model, and ChromaDB returns the closest chunks. A distance threshold (currently 1.0, about cosine similarity 0.5 for normalized vectors) drops chunks that aren't relevant. The remaining chunks are wrapped in tagged blocks appended to the user's message. If none pass, Gemini answers without document context.
+
+**Prompt safety:** the system prompt tells Gemini to treat excerpts as data, never as instructions, as a defense against prompt injection from uploaded files. Gemini can answer from the excerpts alone or combine them with live search.
+
+**Limitations**
+
+- **Query rewriting:** the prompt is embedded as-is, so long or multi-topic questions retrieve poorly. An LLM could split them into focused queries.
+- **Retrieval on every message:** chunks are fetched before Gemini decides whether the question relates to a document.
+- **History growth:** excerpts are added to the user message, so they likely accumulate in the history Gemini stores over a long chat.
+- **Document parsing:** `pypdf` struggles with two-column layouts, equations and headers or footers, and does no OCR for scanned PDFs. Better parsing would give cleaner chunks.
+- **File types:** PDF only. Word, text and markdown could be added.
 
 ### Backend
 
-The backend is built with FastAPI and Google's GenAI SDK. Gemini was chosen because its models offer a free tier. The API receives user messages, applies a system prompt that defines the chatbot's behavior and response requirements passes the request to the chatbot logic, executes any requested tools, and returns a structured response to the frontend.
+FastAPI receives each message, applies the system prompt, runs any tools Gemini requests, and returns a structured reply. Gemini was chosen for its free tier.
 
-#### Retrieval-Augmented Generation (RAG)
+- **Structured output:** a Pydantic model (`ChatReply`) defines `response`, `justification` and `sources`, and is passed to Gemini as the output schema so the frontend always gets a consistent shape.
+- **Stateless API:** multi-turn context lives on Gemini's servers. Each reply returns an interaction ID, which the frontend sends back as `previous_interaction_id`. The backend keeps no session store or database for conversations.
+- **Configuration:** tool definitions, the system prompt and shared constants live in `chat_config.py`. A `check_consistency()` function catches mismatches between the tools defined for Gemini and those named in the prompt.
 
-This chatbot supports Retrieval-Augmented Generation (RAG), allowing users to upload PDF documents and ask questions about their contents. Rather than relying solely on the language model's existing knowledge, the chatbot retrieves relevant passages from uploaded documents and provides them as context when generating responses. It is restricted to PDF only as most research papers tend to be in that format. Uploaded PDFs are saved in backend/uploads/, and their embeddings are stored in a local ChromaDB collection.
+### Tool Calling
 
-- **Text Extraction:** Extract text from uploaded PDFs using `pypdf`.
-- **Chunking:** Divide the extracted text into 200-token chunks with a 30-token overlap to preserve context across chunk boundaries.
-- **Embedding Generation:** Convert each chunk into a numerical vector using the `sentence-transformers/all-MiniLM-L6-v2` embedding model.
-- **Vector Storage:** Normalize the embeddings and store them in ChromaDB alongside their corresponding text chunks and source filenames.
+Gemini chooses from three tools based on the query, system prompt and tool descriptions:
 
-When a user submits a question, the original prompt is embedded using the same model and compared against the stored document embeddings. ChromaDB retrieves the closest matching chunks based on vector distance, and a distance threshold filters out results that are not sufficiently relevant. Gemini then generates a response using the original user prompt and any retrieved document passages as context. If no chunks meet the relevance threshold, the chatbot can generate a response without document-derived context.
+- **`search_arxiv`:** papers, with category filters (e.g. `cat:cs.LG`), sorted by submission date, up to 5 results
+- **`search_news`:** DuckDuckGo News with time windows (`d`, `w`, `m`), up to 5 results
+- **`search_web`:** broader DuckDuckGo search when news is thin or irrelevant, up to 5 results
 
-##### Improvements to RAG
+DuckDuckGo is used instead of Gemini's native grounding search because it is free, whereas combining grounding with function calling and structured output was not (learned that the hard way).
 
-To improve retrieval, I would rewrite or decompose complex user prompts into focused search queries optimized for ChromaDB. This could be achieved using an LLM to identify distinct questions within the user's prompt and generate focused search queries for embedding and retrieval. This would improve retrieval accuracy for prompts involving multiple topics and more lengthy questions. I would also implement more sophisticated document parsing to better handle complex layouts, as well as other file types.
+**Custom tool loop:** calls run sequentially, and each result goes back to Gemini, which either answers or requests another call. This lets it decide from what it already has instead of searching everything upfront. Each turn is capped at `MAX_TOOL_CALLS = 3` to avoid hitting API rate limits and to keep latency down. At the cap, `LIMIT_NOTE` tells Gemini to answer from what it has, and all tools are removed from the request.
 
-#### Stateless API Design
+### Citations
 
-Since persistent chat history is not needed, multi-turn context is maintained by Gemini servers and referenced using an interaction ID. Each response returns a new ID to the frontend, which sends it back as `previous_interaction_id` on the next request. The backend passes this ID through to Gemini rather than maintaining its own conversation history, so the FastAPI application does not require an in-memory session store or database for conversation state.
+The prompt requires links to go in `sources` (never in the response text) and forbids inventing URLs. This is enforced by prompt only; the backend does not check that each URL appeared in a tool result. No problems appeared in manual spot checks.
 
-#### Structured Output
-
-The chatbot uses a Pydantic model (`ChatReply`) to define the required response structure: `response`, `justification`, and `sources`. This schema is passed to Gemini as the expected structured output format to ensure the backend receives a consistent response structure that the frontend can easily handle.
-
-#### Tool Calling
-
-The chatbot gives Gemini access to three search tools. Based on the user's query, system instructions, and tool descriptions, Gemini determines which tools to call and how to use their results to formulate a response.
-
-- **`search_arxiv`:** Searches for research papers, supporting category filters such as `cat:cs.CL`, `cat:cs.LG`, and `cat:cs.AI`. Results are sorted by submission date, with a maximum of five results.
-- **`search_news`:** Searches DuckDuckGo News using configurable time windows (`d`, `w`, and `m`), returning up to five results.
-- **`search_web`:** Performs a broader DuckDuckGo search when news results are insufficient or irrelevant, returning up to five results.
-
-DuckDuckGo was chosen over Gemini's native grounding search because it is free to use within this project, whereas combining grounding search with function calling and structured output presented limitations. (Learned that one the hard way.)
-
-**Custom Tool-Calling Loop**
-
-The backend implements tool calling in a custom loop, executing calls sequentially. After each call, the result is returned to Gemini, which can either generate a final response or request another tool call. This allows Gemini to use previously retrieved information to decide whether further searching is necessary, rather than executing every possible search upfront.
-
-To limit API usage and prevent excessive tool execution from increasing latency, each user turn is restricted to three tool calls (`MAX_TOOL_CALLS = 3`). If the limit is reached, `LIMIT_NOTE` instructs Gemini to synthesize a response using the information already retrieved. All tools are then removed from the request, preventing further tool calls during final response generation.
-
-**Future Improvement**
-
-Independent searches, such as an arXiv search and a news search, could be executed in parallel to reduce response time. The implementation would still need to enforce the per-turn tool-call limit.
-
-#### Citation Policy
-
-Prompt instructions require Gemini to place source links in the `sources` field rather than embedding them in the `response` field, and prohibit the model from inventing URLs. Source links are expected to only come from the results returned by the search tools.
-
-This is currently enforced through prompt instructions rather than backend validation. The backend does not independently verify that every URL in `sources` appeared in a tool result. URL validation could be added later by comparing the model's sources against the URLs returned by the tools. No issues ever arose in manual spot checking.
-
-#### Configuration and Testing
-
-Tool definitions, system instructions, and shared configuration are centralized in `chat_config.py`. Shared constants are reused across the tool schemas, prompt, and backend logic to keep limits and defaults consistent. A `check_consistency()` function checks for mismatches between the tools defined for Gemini and those referenced in the system prompt.
-
-The chatbot was tested using `chat_test.py`, which generates a text file containing chatbot responses for manual review. Testing focused on whether responses were semantically correct and whether citations were appropriate and supported by the search results.
+Uploaded documents have no public URL, so they are never put in `sources`. Gemini names the file in the response text instead.
 
 ### Frontend
 
-The frontend is built with React using TypeScript and Vite. Messages use a discriminated union (`Message = UserMessageData | AIMessageData | ErrorMessageData` | `SuccessMessageData`) keyed on `role`, allowing user prompts, AI responses, and errors to coexist in a single typed conversation state while preserving their distinct fields. `MessageList` uses the message type to render the appropriate component.
+React with TypeScript and Vite. A discriminated union keyed on `role` lets user messages, AI replies and status messages share one typed conversation state, and `MessageList` renders the right component for each. The interaction ID is kept in state and sent with each request. Styling was prompt-generated with manual tweaks; the goal was a simple, clear, scrollable UI.
 
-The transaction ID returned by the backend is stored in frontend state and passed back with the next request to maintain multi-turn context. The ID is used internally and is not displayed as part of the conversation.
+### Testing
 
-All styling was prompt-generated with manual tweaks as the goal was just a simple, clear, and scrollable UI that effectively presents the conversation.
+`chat_test.py` runs a set of prompts and writes the chatbot's responses to a text file for manual review, checking that answers are correct and citations are supported by the search results.
+
+## Other Future Work
+
+- **URL validation:** check that every URL in `sources` appeared in a tool result.
+- **Parallel tool calls:** run independent searches (e.g. arXiv and news) at once while still enforcing the per-turn cap.
 
 ## How to Run the Project
 
-### Prerequisites
+**Prerequisites:** Python 3.10+, Node.js v22 LTS, and a [Gemini API key](https://aistudio.google.com/apikey) (free).
 
-- **Python 3.10+** (for the FastAPI backend)
-- **Node.js v22 LTS** (for the Vite React frontend)
-- A **Gemini API Key**
-  - You can get one for free from [Google AI Studio](https://aistudio.google.com/apikey) if you do not have one.
-
-You will need two terminal windows open: one for the backend and one for the frontend.
-
-### Environment Setup
-
-You need to set up your environment variables for the backend to communicate with the Gemini API.
-In the `backend/` directory, create a `.env` file with the following contents:
+**1. Configure the backend.** Create `backend/.env`:
 
 ```env
 GEMINI_API_KEY="your_api_key_here"
 MODEL="gemini-3.5-flash-lite"
 ```
 
-Replace `your_api_key_here` with your actual Gemini API key.
+Only tested with `gemini-3.5-flash-lite`. Other Gemini 3.x models that support structured output and tool calls may work.
 
-**Note:** This project has only been tested with the **Gemini 3.5 Flash Lite** (`gemini-3.5-flash-lite`) model. Other Gemini 3.x models that support structured output and tool calls may work but are untested. I just like free things.
-
-### 1. Start the Backend (FastAPI)
-
-On first launch, the backend downloads the all-MiniLM-L6-v2 embedding model, so the initial startup takes longer and requires an internet connection.
-
-Open a terminal and run the following commands:
+**2. Start the backend** (terminal 1):
 
 ```bash
-# Navigate to the backend directory
 cd backend
-
-# Create a virtual environment
 python3 -m venv venv
-
-# Activate the virtual environment
 source venv/bin/activate
-
-# Install the Python dependencies
 pip install -r requirements.txt
-
-# Launch the FastAPI server
 uvicorn main:app --reload
 ```
 
-_The backend will now be running on `http://127.0.0.1:8000`._
+Runs on `http://127.0.0.1:8000`. On first launch it downloads the `all-MiniLM-L6-v2` embedding model, so startup is slower and needs an internet connection.
 
-### 2. Start the Frontend (React / Vite)
-
-Open a new terminal window and run:
+**3. Start the frontend** (terminal 2):
 
 ```bash
-# Navigate to the frontend directory
 cd frontend
-
-# Install the Node dependencies
 npm install
-
-# Launch the Vite development server
 npm run dev
 ```
 
-_The frontend will typically be accessible at `http://localhost:5173` (or `5174`). If it starts on 5174, change Line 10 in backend/main.py to reflect that. Click the link in your terminal to open the UI in your browser and start chatting!_
+Usually at `http://localhost:5173`. If Vite picks 5174 instead, update the allowed origin (CORS) in `backend/main.py`.
