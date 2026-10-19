@@ -2,6 +2,7 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from gemini import ask_gemini
 from models import ChatReply, ChatRequest
+from rag.pdf import process_pdfs
 
 app = FastAPI()
 app.add_middleware(
@@ -24,7 +25,7 @@ def chat(payload: ChatRequest):
 
 
 @app.post("/upload")
-def upload_files(files: list[UploadFile] = File(...)):
+async def upload_files(files: list[UploadFile] = File(...)):
     for file in files:
         if not file.filename or not file.filename.lower().endswith(".pdf"):
             raise HTTPException(
@@ -32,6 +33,7 @@ def upload_files(files: list[UploadFile] = File(...)):
                 detail="Only PDF files are allowed",
             )
 
+    await process_pdfs(files)
     return {
         "message": "Files received successfully",
         "filenames": [file.filename for file in files],

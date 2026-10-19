@@ -6,3 +6,4 @@ __pycache__/
 *.py[cod]
 results.txt
 demoChatbot.mov
+/backend/uploads/
