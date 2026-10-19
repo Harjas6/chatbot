@@ -3,11 +3,14 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 from pypdf import PdfReader
+from sentence_transformers import SentenceTransformer
 from transformers import AutoTokenizer
 
 UPLOAD_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-tokenizer = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+model = SentenceTransformer(MODEL_NAME)
 
 
 async def save_pdf(file: UploadFile) -> Path:
@@ -41,8 +44,14 @@ def chunk_text(text: str, chunk_size: int = 200, overlap: int = 30) -> list[str]
     return chunks
 
 
+def embed_chunks(chunks: list[str]) -> list[list[float]]:
+    embeddings = model.encode(chunks)
+    return embeddings.tolist()
+
+
 async def process_pdfs(files: list[UploadFile]):
     for file in files:
         path = await save_pdf(file)
         text = extract_text(path)
         chunks = chunk_text(text)
+        embeddings = embed_chunks(chunks)
