@@ -80,7 +80,9 @@ React with TypeScript and Vite. A discriminated union keyed on `role` lets user 
 
 ## How to Run the Project
 
-**Prerequisites:** Python 3.10+, Node.js v22 LTS, and a [Gemini API key](https://aistudio.google.com/apikey) (free).
+**Prerequisites:** Python 3.12 (for compatibility with the pinned dependencies which were selected to run on my i5 MacBook), Node.js v22 LTS, and a [Gemini API key](https://aistudio.google.com/apikey) (free).
+
+Newer Python versions may work, but you'll likely need to update some dependencies to ensure compatibility.
 
 **1. Configure the backend.** Create `backend/.env`:
 
