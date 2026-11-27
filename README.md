@@ -129,6 +129,12 @@ This project uses a local PostgreSQL database.
     psql -d postgres -c "SELECT current_user;"
    ```
 
+5. ````bash
+   alembic upgrade head```
+   ````
+
+This creates the database tables using the existing migration scripts.
+
 **Note:** PostgreSQL must be running locally before starting the backend. To stop the service:
 
 ```bash
