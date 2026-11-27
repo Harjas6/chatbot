@@ -93,6 +93,48 @@ MODEL="gemini-3.5-flash-lite"
 
 Only tested with `gemini-3.5-flash-lite`. Other Gemini 3.x models that support structured output and tool calls may work.
 
+### PostgreSQL Setup
+
+This project uses a local PostgreSQL database.
+
+1. Install PostgreSQL using Homebrew:
+
+   ```bash
+   brew install postgresql@17
+   ```
+
+2. Start the PostgreSQL service (will autostart it in the future so check the note below to stop it):
+
+   ```bash
+   brew services start postgresql@17
+   ```
+
+3. Create the application database:
+
+   ```bash
+   psql postgres
+   CREATE DATABASE chatbot;
+   \q
+   ```
+
+4. Add the database connection URL to your `backend/.env` file:
+
+   ```env
+   DATABASE_URL=postgresql+asyncpg://YOUR_USERNAME@localhost:5432/chatbot
+   ```
+
+   Replace `YOUR_USERNAME` with your local PostgreSQL username. Run the following to find it
+
+   ```bash
+    psql -d postgres -c "SELECT current_user;"
+   ```
+
+**Note:** PostgreSQL must be running locally before starting the backend. To stop the service:
+
+```bash
+brew services stop postgresql@17
+```
+
 **2. Start the backend** (terminal 1):
 
 ```bash
